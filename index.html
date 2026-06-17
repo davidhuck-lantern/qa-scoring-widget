@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Call Quality Scoring — Lantern Care</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f3; --bg3: #eeede9;
+    --text: #1a1a19; --text2: #5a5a57; --text3: #9a9a96;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --radius: 8px; --radius-lg: 12px;
+    --purple-bg: #EEEDFE; --purple: #534AB7;
+    --teal-bg: #E1F5EE; --teal: #0F6E56;
+    --blue-bg: #E6F1FB; --blue: #185FA5; --blue-dark: #0C447C;
+    --green-bg: #EAF3DE; --green: #3B6D11; --green-dark: #27500A;
+    --amber-bg: #FAEEDA; --amber: #854F0B;
+    --red-bg: #FCEBEB; --red: #A32D2D;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+      --text: #f0efeb; --text2: #a8a8a4; --text3: #686864;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --purple-bg: #26215C; --purple: #AFA9EC;
+      --teal-bg: #04342C; --teal: #5DCAA5;
+      --blue-bg: #042C53; --blue: #85B7EB; --blue-dark: #B5D4F4;
+      --green-bg: #173404; --green: #97C459; --green-dark: #C0DD97;
+      --amber-bg: #412402; --amber: #EF9F27;
+      --red-bg: #501313; --red: #F09595;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; padding: 24px 16px; }
+  .container { max-width: 760px; margin: 0 auto; }
+  .page-header { margin-bottom: 20px; }
+  .page-header h1 { font-size: 20px; font-weight: 600; }
+  .page-header p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 12px; }
+  .card-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .card-icon { width: 32px; height: 32px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .card-title { font-size: 15px; font-weight: 600; }
+  .card-sub { font-size: 12px; color: var(--text2); }
+  .section-pct { margin-left: auto; font-size: 13px; font-weight: 600; }
+
+  .api-row { display: flex; gap: 8px; align-items: center; }
+  .api-row input { flex: 1; padding: 8px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; font-family: monospace; }
+  .api-row input:focus { outline: none; border-color: var(--blue); }
+  .api-save { padding: 8px 14px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .api-save:hover { background: var(--bg3); }
+  .api-status { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .api-status.ok { color: var(--green); }
+
+  .drop { border: 1px dashed var(--border2); border-radius: var(--radius); padding: 28px 16px; text-align: center; cursor: pointer; background: var(--bg2); transition: background .15s; }
+  .drop:hover, .drop.over { background: var(--bg3); }
+  .drop.has-file { border-style: solid; }
+  .drop-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+  .drop-label { font-size: 13px; color: var(--text2); }
+  .drop-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .file-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 4px 10px; font-size: 12px; margin-top: 8px; }
+  .file-pill button { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 13px; padding: 0 0 0 4px; }
+  .audio-note { background: var(--blue-bg); border: 0.5px solid #B5D4F4; border-radius: var(--radius); padding: 10px 12px; margin-top: 10px; display: none; font-size: 12px; color: var(--blue-dark); line-height: 1.6; }
+  .analyze-btn { width: 100%; margin-top: 10px; padding: 10px; font-size: 14px; font-weight: 600; border-radius: var(--radius); border: none; background: var(--blue); color: #fff; cursor: pointer; transition: opacity .15s; }
+  .analyze-btn:hover { opacity: .88; }
+  .analyze-btn:disabled { opacity: .4; cursor: default; }
+  .or-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0 10px; }
+  .or-divider::before, .or-divider::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+  .or-divider span { font-size: 11px; color: var(--text3); }
+  textarea { width: 100%; padding: 10px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 90px; }
+  textarea:focus { outline: none; border-color: var(--blue); }
+
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .metric { background: var(--bg2); border-radius: var(--radius); padding: 12px 14px; }
+  .metric-lbl { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .metric-val { font-size: 22px; font-weight: 700; }
+
+  .bar-wrap { height: 5px; background: var(--bg2); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+  .bar { height: 100%; border-radius: 99px; transition: width .35s, background .35s; }
+
+  /* Criteria rows — label takes remaining space, buttons wrap below on small screens */
+  .crit-row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .crit-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .crit-lbl { flex: 1; min-width: 160px; font-size: 13px; padding-top: 4px; }
+  .crit-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  /* 10-point rating strip */
+  .rating-group { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+  .rb {
+    width: 26px; height: 26px; border-radius: 6px;
+    border: 0.5px solid var(--border2); background: var(--bg);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    color: var(--text2); transition: all .1s; padding: 0;
+  }
+  .rb:hover { background: var(--bg2); }
+  /* 1-3 = red (poor) */
+  .rb.alow  { background: #FCEBEB; border-color: #E24B4A; color: #791F1F; }
+  /* 4-6 = amber (developing) */
+  .rb.amid  { background: #FAEEDA; border-color: #BA7517; color: #633806; }
+  /* 7-8 = blue (meets standard) */
+  .rb.agood { background: #E6F1FB; border-color: #185FA5; color: #0C447C; }
+  /* 9-10 = green (exceeds) */
+  .rb.ahigh { background: #EAF3DE; border-color: #3B6D11; color: #27500A; }
+
+  .na-btn { font-size: 11px; color: var(--text3); padding-top: 6px; width: 28px; text-align: center; cursor: pointer; user-select: none; flex-shrink: 0; }
+  .na-btn.on { color: var(--text); font-weight: 700; }
+
+  /* Score legend under each section */
+  .score-legend { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .sl-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+  .sl-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  .verdict-wrap { margin-top: 10px; }
+  .verdict { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: var(--radius); }
+
+  .overall-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .overall-label { font-size: 15px; font-weight: 600; }
+  .overall-val { font-size: 24px; font-weight: 700; }
+
+  .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .action-btn { flex: 1; min-width: 100px; padding: 9px; font-size: 13px; font-weight: 500; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .action-btn:hover { background: var(--bg2); }
+  .action-btn.primary { background: var(--text); color: var(--bg); border-color: transparent; }
+  .action-btn.primary:hover { opacity: .88; }
+
+  .spinner-wrap { display: none; flex-direction: column; align-items: center; gap: 12px; padding: 20px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-msg { font-size: 13px; color: var(--text2); }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); font-size: 13px; padding: 10px 18px; border-radius: var(--radius); display: none; z-index: 9999; white-space: nowrap; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .no-print { display: none !important; }
+    .card { border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="page-header">
+    <h1>Call Quality Scoring</h1>
+    <p>Healthcare benefits — Lantern Care. Upload a call recording or paste a transcript for AI-assisted scoring.</p>
+  </div>
+
+  <!-- API Key -->
+  <div class="card no-print" id="api-card">
+    <div class="card-hdr" style="margin-bottom:10px;">
+      <div class="card-icon" style="background:var(--bg2);">🔑</div>
+      <div><div class="card-title">Anthropic API key</div><div class="card-sub">Required for AI analysis. Stored locally in your browser only.</div></div>
+    </div>
+    <div class="api-row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      <button class="api-save" onclick="saveKey()">Save</button>
+    </div>
+    <div class="api-status" id="api-status">No key saved yet.</div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card no-print">
+    <div class="card-hdr" style="margin-bottom:12px;">
+      <div class="card-icon" style="background:var(--amber-bg);">📁</div>
+      <div><div class="card-title">Upload call</div><div class="card-sub">Audio or transcript — Claude analyzes and suggests scores</div></div>
+    </div>
+    <div class="drop" id="drop-zone" onclick="document.getElementById('file-inp').click()" ondragover="dov(event)" ondragleave="dol()" ondrop="ddr(event)">
+      <input type="file" id="file-inp" accept=".mp3,.wav,.m4a,.mp4,.ogg,.flac,.txt,.pdf,.doc,.docx" style="display:none" onchange="onSel(event)">
+      <span class="drop-icon" id="drop-icon">📂</span>
+      <div class="drop-label" id="drop-label">Drop a file here or click to browse</div>
+      <div class="drop-hint" id="drop-hint">.mp3 &nbsp;.wav &nbsp;.m4a &nbsp;.txt &nbsp;.pdf &nbsp;.doc</div>
+    </div>
+    <div id="pill-row"></div>
+    <div class="audio-note" id="audio-note">Audio files are sent to Claude via the Anthropic API for transcription and scoring. Make sure your API key is saved above.</div>
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      <div class="spinner-msg" id="spinner-msg">Analyzing call...</div>
+    </div>
+    <button class="analyze-btn" id="analyze-btn" disabled onclick="doAnalyze()">Analyze &amp; auto-fill scores</button>
+    <div class="or-divider"><span>or paste transcript</span></div>
+    <textarea id="paste-area" placeholder="Agent: Thank you for calling, how can I help you today?&#10;Member: I wanted to ask about my dental coverage…"></textarea>
+    <button class="analyze-btn" id="paste-btn" onclick="doPaste()" style="margin-top:8px;">Analyze transcript</button>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric"><div class="metric-lbl">Empathy</div><div class="metric-val" id="sc-e">—</div></div>
+    <div class="metric"><div class="metric-lbl">Clear messaging</div><div class="metric-val" id="sc-c">—</div></div>
+    <div class="metric"><div class="metric-lbl">Call close</div><div class="metric-val" id="sc-k">—</div></div>
+  </div>
+
+  <!-- Empathy -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--purple-bg);">🤝</div>
+      <div><div class="card-title">Empathy</div><div class="card-sub">Acknowledgement, tone, and emotional attunement</div></div>
+      <div class="section-pct" id="ep-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-e" style="width:0%;background:var(--purple);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Acknowledged member's situation<div class="crit-sub">Validated concerns before jumping to solutions</div></div>
+        <div class="rating-group" data-s="e" data-i="0"></div>
+        <span class="na-btn" data-s="e" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Used warm, caring tone<div class="crit-sub">Avoided robotic or dismissive language</div></div>
+        <div class="rating-group" data-s="e" data-i="1"></div>
+        <span class="na-btn" data-s="e" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Listened actively &amp; did not interrupt<div class="crit-sub">Let the member finish, asked clarifying questions</div></div>
+        <div class="rating-group" data-s="e" data-i="2"></div>
+        <span class="na-btn" data-s="e" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Showed urgency on behalf of the member<div class="crit-sub">Treated their healthcare needs as a priority</div></div>
+        <div class="rating-group" data-s="e" data-i="3"></div>
+        <span class="na-btn" data-s="e" data-i="3">N/A</span>
+      </div>
+    </div>
+    <div class="score-legend">
+      <div class="sl-item"><div class="sl-swatch" style="background:#FCEBEB;border:1px solid #E24B4A;"></div>1–3 Poor</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#FAEEDA;border:1px solid #BA7517;"></div>4–6 Developing</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#E6F1FB;border:1px solid #185FA5;"></div>7–8 Meets standard</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#EAF3DE;border:1px solid #3B6D11;"></div>9–10 Exceeds</div>
+    </div>
+  </div>
+
+  <!-- Clarity -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--teal-bg);">💬</div>
+      <div><div class="card-title">Clear messaging</div><div class="card-sub">Accuracy, simplicity, and benefit comprehension</div></div>
+      <div class="section-pct" id="cp-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-c" style="width:0%;background:var(--teal);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Explained benefits in plain language<div class="crit-sub">Avoided jargon; used member-friendly terms</div></div>
+        <div class="rating-group" data-s="c" data-i="0"></div>
+        <span class="na-btn" data-s="c" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Confirmed member understanding<div class="crit-sub">Checked for comprehension; offered to repeat</div></div>
+        <div class="rating-group" data-s="c" data-i="1"></div>
+        <span class="na-btn" data-s="c" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Provided accurate benefit information<div class="crit-sub">No incorrect coverage, cost, or eligibility details</div></div>
+        <div class="rating-group" data-s="c" data-i="2"></div>
+        <span class="na-btn" data-s="c" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Set clear next steps<div class="crit-sub">Told the member exactly what happens after this call</div></div>
+        <div class="rating-group" data-s="c" data-i="3"></div>
+        <span class="na-btn" data-s="c" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Close -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--blue-bg);">✅</div>
+      <div><div class="card-title">Call close</div><div class="card-sub">Resolution, member satisfaction, and wrap-up quality</div></div>
+      <div class="section-pct" id="kp-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-k" style="width:0%;background:var(--blue);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Verified all issues were resolved<div class="crit-sub">"Is there anything else I can help you with?"</div></div>
+        <div class="rating-group" data-s="k" data-i="0"></div>
+        <span class="na-btn" data-s="k" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Summarized key outcomes for the member<div class="crit-sub">Recapped what was discussed before hanging up</div></div>
+        <div class="rating-group" data-s="k" data-i="1"></div>
+        <span class="na-btn" data-s="k" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Expressed genuine appreciation<div class="crit-sub">Thanked member for their time; felt sincere</div></div>
+        <div class="rating-group" data-s="k" data-i="2"></div>
+        <span class="na-btn" data-s="k" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Provided callback / escalation path if needed<div class="crit-sub">Member left knowing how to follow up</div></div>
+        <div class="rating-group" data-s="k" data-i="3"></div>
+        <span class="na-btn" data-s="k" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overall -->
+  <div class="card">
+    <div class="overall-row">
+      <span class="overall-label">Overall score</span>
+      <span class="overall-val" id="ov-pct">—</span>
+    </div>
+    <div class="bar-wrap" style="height:8px;"><div class="bar" id="bar-ov" style="width:0%;"></div></div>
+    <div class="verdict-wrap"><span class="verdict" id="verdict" style="display:none;"></span></div>
+
+    <div style="margin-top:14px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">QA notes &amp; coaching</label>
+      <textarea id="qa-notes" style="min-height:80px;" placeholder="Coaching notes, highlights, or follow-up items…"></textarea>
+    </div>
+
+    <div id="call-meta-section" style="display:none;margin-top:14px;">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Call details (optional — appears on printed scorecard)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input type="text" id="meta-agent" placeholder="Agent name" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-date" placeholder="Call date" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-member" placeholder="Member name" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-file" placeholder="Call ID / filename" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="action-btn primary" onclick="doPrint()">🖨️ Print / Save PDF</button>
+      <button class="action-btn" onclick="doExportCSV()">📥 Export CSV</button>
+      <button class="action-btn" onclick="toggleMeta()">📋 Call details</button>
+      <button class="action-btn" onclick="doReset()" style="flex:0 0 auto;width:90px;">↺ Reset</button>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { e:[null,null,null,null], c:[null,null,null,null], k:[null,null,null,null] };
+const AUDIO_EXTS = ['.mp3','.wav','.m4a','.mp4','.ogg','.flac'];
+let curFile = null, isAudio = false;
+
+// Build 1–10 buttons for every rating group
+function scoreClass(v) {
+  if (v <= 3) return 'alow';
+  if (v <= 6) return 'amid';
+  if (v <= 8) return 'agood';
+  return 'ahigh';
+}
+
+document.querySelectorAll('.rating-group').forEach(g => {
+  for (let v = 1; v <= 10; v++) {
+    const btn = document.createElement('button');
+    btn.className = 'rb';
+    btn.dataset.v = v;
+    btn.textContent = v;
+    btn.title = v <= 3 ? 'Poor' : v <= 6 ? 'Developing' : v <= 8 ? 'Meets standard' : 'Exceeds';
+    btn.addEventListener('click', () => {
+      const s = g.dataset.s, i = parseInt(g.dataset.i);
+      S[s][i] = v;
+      g.querySelectorAll('.rb').forEach(b => {
+        b.className = 'rb';
+        if (parseInt(b.dataset.v) === v) b.classList.add(scoreClass(v));
+      });
+      const na = document.querySelector(`.na-btn[data-s="${s}"][data-i="${i}"]`);
+      if (na) na.classList.remove('on');
+      updateUI();
+    });
+    g.appendChild(btn);
+  }
+});
+
+document.querySelectorAll('.na-btn').forEach(el => {
+  el.addEventListener('click', () => {
+    const s = el.dataset.s, i = parseInt(el.dataset.i);
+    S[s][i] = 'na';
+    const g = document.querySelector(`.rating-group[data-s="${s}"][data-i="${i}"]`);
+    if (g) g.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+    el.classList.add('on');
+    updateUI();
+  });
+});
+
+// API key
+function saveKey() {
+  const v = document.getElementById('api-key-input').value.trim();
+  if (!v.startsWith('sk-ant-') && !v.startsWith('sk-')) { showToast('Key should start with sk-ant-'); return; }
+  localStorage.setItem('lc_qa_apikey', v);
+  document.getElementById('api-status').textContent = 'Key saved. ✓';
+  document.getElementById('api-status').className = 'api-status ok';
+  showToast('API key saved');
+}
+function getKey() { return localStorage.getItem('lc_qa_apikey') || ''; }
+window.addEventListener('load', () => {
+  const k = getKey();
+  if (k) {
+    document.getElementById('api-key-input').value = k;
+    document.getElementById('api-status').textContent = 'Key loaded from local storage. ✓';
+    document.getElementById('api-status').className = 'api-status ok';
+  }
+});
+
+// File handling
+function isAudioFile(n) { return AUDIO_EXTS.some(x => n.toLowerCase().endsWith(x)); }
+function dov(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('over'); }
+function dol() { document.getElementById('drop-zone').classList.remove('over'); }
+function ddr(e) { e.preventDefault(); dol(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
+function onSel(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
+
+function handleFile(f) {
+  curFile = f; isAudio = isAudioFile(f.name);
+  document.getElementById('drop-zone').classList.add('has-file');
+  document.getElementById('drop-icon').textContent = isAudio ? '🎵' : '📄';
+  document.getElementById('drop-label').textContent = f.name;
+  document.getElementById('drop-hint').textContent = isAudio ? 'Audio recording — will be transcribed by Claude' : 'Transcript — will be read directly';
+  showPill(f.name);
+  document.getElementById('audio-note').style.display = isAudio ? 'block' : 'none';
+  document.getElementById('analyze-btn').disabled = false;
+  document.getElementById('meta-file').value = f.name;
+}
+
+function showPill(name) {
+  document.getElementById('pill-row').innerHTML =
+    `<div class="file-pill">${isAudio ? '🎵' : '📄'} ${name}<button onclick="clearFile()" title="Remove">✕</button></div>`;
+}
+
+function clearFile() {
+  curFile = null; isAudio = false;
+  document.getElementById('pill-row').innerHTML = '';
+  document.getElementById('drop-zone').classList.remove('has-file');
+  document.getElementById('drop-icon').textContent = '📂';
+  document.getElementById('drop-label').textContent = 'Drop a file here or click to browse';
+  document.getElementById('drop-hint').textContent = '.mp3  .wav  .m4a  .txt  .pdf  .doc';
+  document.getElementById('audio-note').style.display = 'none';
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('file-inp').value = '';
+}
+
+// Claude API
+const PROMPT = `You are a QA evaluator for a healthcare benefits call center (Lantern Care). Analyze the following call {SOURCE} and score each criterion on a scale of 1–10. Use "na" if a criterion is not assessable from this call.
+
+Scoring guide:
+1–3 = Poor (criterion not met or barely attempted)
+4–6 = Developing (partial effort, inconsistent execution)
+7–8 = Meets standard (solid performance, minor gaps)
+9–10 = Exceeds standard (exemplary, proactive, above expectations)
+
+{CONTENT}
+
+Return ONLY valid JSON with no explanation or text outside the JSON:
+{"empathy":[s,s,s,s],"clarity":[s,s,s,s],"close":[s,s,s,s],"summary":"2-3 sentence coaching note"}
+
+Criteria (each score must be integer 1–10 or the string "na"):
+empathy[0] acknowledged member's situation — validated concerns before solutions
+empathy[1] warm caring tone — no robotic or dismissive language
+empathy[2] listened actively, did not interrupt — let member finish, asked clarifying questions
+empathy[3] showed urgency on behalf of member — treated their healthcare needs as a priority
+clarity[0] explained benefits in plain language — no jargon, member-friendly terms
+clarity[1] confirmed member understanding — checked comprehension, offered to repeat
+clarity[2] provided accurate benefit information — no wrong coverage, cost, or eligibility details
+clarity[3] set clear next steps — member knows exactly what happens after the call
+close[0] verified all issues resolved — asked if anything else needed
+close[1] summarized key outcomes before hang-up — recapped what was discussed
+close[2] expressed genuine appreciation — thanked member, felt sincere
+close[3] provided callback/escalation path — member knows how to follow up`;
+
+async function callClaude(source, content, isAudioB64, mimeType) {
+  const key = getKey();
+  if (!key) { showToast('Save your API key first'); return null; }
+  const messages = [];
+  if (isAudioB64) {
+    messages.push({ role: 'user', content: [
+      { type: 'text', text: PROMPT.replace('{SOURCE}', source).replace('{CONTENT}', 'The audio recording is attached below. Please transcribe it and evaluate the agent.') },
+      { type: 'document', source: { type: 'base64', media_type: mimeType, data: isAudioB64 } }
+    ]});
+  } else {
+    messages.push({ role: 'user', content: PROMPT.replace('{SOURCE}', source).replace('{CONTENT}', content) });
+  }
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-calls': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1024, messages })
+  });
+  if (!resp.ok) { const e = await resp.json(); showToast('API error: ' + (e.error?.message || resp.status)); return null; }
+  const data = await resp.json();
+  const text = data.content[0].text.trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) { showToast('Could not parse Claude response'); return null; }
+  return JSON.parse(jsonMatch[0]);
+}
+
+function setSpinner(show, msg) {
+  document.getElementById('spinner').style.display = show ? 'flex' : 'none';
+  if (msg) document.getElementById('spinner-msg').textContent = msg;
+  document.getElementById('analyze-btn').disabled = show;
+  document.getElementById('paste-btn').disabled = show;
+}
+
+async function doAnalyze() {
+  if (!curFile) return;
+  setSpinner(true, isAudio ? 'Transcribing and scoring audio...' : 'Analyzing transcript...');
+  try {
+    let result;
+    if (isAudio) {
+      const b64 = await fileToBase64(curFile);
+      result = await callClaude('audio recording', '', b64, curFile.type || 'audio/mpeg');
+    } else {
+      result = await callClaude('transcript', await curFile.text(), null, null);
+    }
+    if (result) applyScores(result);
+  } catch(err) { showToast('Error: ' + err.message); }
+  setSpinner(false);
+}
+
+async function doPaste() {
+  const txt = document.getElementById('paste-area').value.trim();
+  if (!txt) { showToast('Paste a transcript first'); return; }
+  setSpinner(true, 'Analyzing transcript...');
+  try {
+    const result = await callClaude('transcript', txt, null, null);
+    if (result) applyScores(result);
+  } catch(err) { showToast('Error: ' + err.message); }
+  setSpinner(false);
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function applyScores(data) {
+  const map = { empathy:'e', clarity:'c', close:'k' };
+  for (const [key, s] of Object.entries(map)) {
+    if (!Array.isArray(data[key])) continue;
+    data[key].forEach((val, i) => {
+      S[s][i] = val === 'na' ? 'na' : parseInt(val);
+      const g = document.querySelector(`.rating-group[data-s="${s}"][data-i="${i}"]`);
+      const na = document.querySelector(`.na-btn[data-s="${s}"][data-i="${i}"]`);
+      if (!g) return;
+      g.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+      if (na) na.classList.remove('on');
+      if (val === 'na') {
+        if (na) na.classList.add('on');
+      } else {
+        const b = g.querySelector(`[data-v="${val}"]`);
+        if (b) b.classList.add(scoreClass(parseInt(val)));
+      }
+    });
+  }
+  if (data.summary) document.getElementById('qa-notes').value = data.summary;
+  updateUI();
+  showToast('Scores filled in — review and adjust as needed');
+}
+
+// Scoring — section average out of 10, displayed as x.x / 10
+function secAvg(s) {
+  const v = S[s].filter(x => x !== null && x !== 'na');
+  if (!v.length) return null;
+  return Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10;
+}
+
+function secPct(s) {
+  const avg = secAvg(s);
+  return avg === null ? null : Math.round(avg / 10 * 100);
+}
+
+function barColor(p) {
+  if (p >= 85) return '#639922';
+  if (p >= 70) return '#185FA5';
+  if (p >= 50) return '#BA7517';
+  return '#E24B4A';
+}
+
+function updateUI() {
+  const cfg = { e:{sc:'sc-e',pct:'ep-pct',bar:'bar-e'}, c:{sc:'sc-c',pct:'cp-pct',bar:'bar-c'}, k:{sc:'sc-k',pct:'kp-pct',bar:'bar-k'} };
+  const pcts = [];
+  for (const [s, ids] of Object.entries(cfg)) {
+    const avg = secAvg(s);
+    const p = avg === null ? null : Math.round(avg / 10 * 100);
+    if (avg === null) {
+      document.getElementById(ids.sc).textContent = '—';
+      document.getElementById(ids.pct).textContent = '—';
+      document.getElementById(ids.bar).style.width = '0%';
+    } else {
+      document.getElementById(ids.sc).textContent = avg.toFixed(1) + ' / 10';
+      document.getElementById(ids.pct).textContent = avg.toFixed(1) + ' / 10';
+      const b = document.getElementById(ids.bar);
+      b.style.width = p + '%'; b.style.background = barColor(p);
+      pcts.push(p);
+    }
+  }
+  const ov = pcts.length ? Math.round(pcts.reduce((a,b) => a+b,0) / pcts.length) : null;
+  const ovEl = document.getElementById('ov-pct');
+  const ovBar = document.getElementById('bar-ov');
+  const vEl = document.getElementById('verdict');
+  if (!ov) { ovEl.textContent = '—'; ovBar.style.width = '0%'; vEl.style.display = 'none'; return; }
+
+  // Overall shown as avg out of 10
+  const allScored = ['e','c','k'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b) => a+b,0) / allScored.length) : 0;
+  ovEl.textContent = ovAvg.toFixed(1) + ' / 10';
+  ovBar.style.width = ov + '%'; ovBar.style.background = barColor(ov);
+  vEl.style.display = 'inline-flex';
+  const verdicts = [
+    [85,'Exceeds standard','background:#EAF3DE;color:#27500A;border:0.5px solid #3B6D11;'],
+    [70,'Meets standard','background:#E6F1FB;color:#0C447C;border:0.5px solid #185FA5;'],
+    [50,'Needs improvement','background:#FAEEDA;color:#633806;border:0.5px solid #BA7517;'],
+    [0,'Below standard','background:#FCEBEB;color:#791F1F;border:0.5px solid #E24B4A;']
+  ];
+  const [,lbl,sty] = verdicts.find(([m]) => ov >= m);
+  vEl.textContent = lbl;
+  vEl.style.cssText = sty + 'display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:4px 12px;border-radius:8px;';
+}
+
+// Print
+function scoreColorStyle(v) {
+  if (v <= 3) return 'background:#FCEBEB;color:#791F1F;';
+  if (v <= 6) return 'background:#FAEEDA;color:#633806;';
+  if (v <= 8) return 'background:#E6F1FB;color:#0C447C;';
+  return 'background:#EAF3DE;color:#27500A;';
+}
+
+function doPrint() {
+  const agent = document.getElementById('meta-agent').value;
+  const date = document.getElementById('meta-date').value;
+  const member = document.getElementById('meta-member').value;
+  const file = document.getElementById('meta-file').value;
+  let meta = '';
+  if (agent || date || member || file) {
+    meta = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">`;
+    if (agent) meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Agent: ${agent}</span>`;
+    if (date)  meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Date: ${date}</span>`;
+    if (member) meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Member: ${member}</span>`;
+    if (file)  meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">File: ${file}</span>`;
+    meta += `</div>`;
+  }
+  const notes = document.getElementById('qa-notes').value;
+  const eA = secAvg('e'), cA = secAvg('c'), kA = secAvg('k');
+  const allScored = ['e','c','k'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b)=>a+b,0)/allScored.length).toFixed(1) : null;
+  const ovPct = ovAvg ? Math.round(ovAvg/10*100) : null;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>QA Scorecard — Lantern Care</title>
+  <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;max-width:700px;margin:0 auto;color:#1a1a19;}
+  h1{font-size:20px;font-weight:700;margin-bottom:4px;}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0;}
+  .metric{background:#f5f5f3;border-radius:8px;padding:12px;}
+  .metric-lbl{font-size:11px;color:#5a5a57;margin-bottom:4px;}
+  .metric-val{font-size:20px;font-weight:700;}
+  .section{margin-bottom:16px;border:1px solid #e0e0dc;border-radius:10px;padding:14px 16px;}
+  .sec-title{font-size:14px;font-weight:700;margin-bottom:10px;}
+  .crit{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0ec;font-size:13px;}
+  .crit:last-child{border-bottom:none;}
+  .score{font-weight:700;padding:2px 9px;border-radius:6px;font-size:12px;}
+  .verdict{display:inline-block;font-size:12px;font-weight:700;padding:4px 12px;border-radius:6px;margin-top:8px;}
+  .notes{background:#f5f5f3;border-radius:8px;padding:12px;margin-top:12px;font-size:13px;line-height:1.6;}
+  .legend{display:flex;gap:12px;font-size:11px;color:#5a5a57;margin-top:8px;flex-wrap:wrap;}
+  .ls{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:middle;}
+  @media print{body{padding:16px;}}</style></head><body>
+  <h1>Call Quality Scorecard</h1><p style="font-size:12px;color:#5a5a57;margin-bottom:8px;">Lantern Care — Healthcare Benefits QA &nbsp;·&nbsp; Scale: 1–10</p>
+  ${meta}
+  <div class="metrics">
+    <div class="metric"><div class="metric-lbl">Empathy</div><div class="metric-val">${eA !== null ? eA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Clear messaging</div><div class="metric-val">${cA !== null ? cA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Call close</div><div class="metric-val">${kA !== null ? kA.toFixed(1)+' / 10' : '—'}</div></div>
+  </div>
+  ${buildPrintSection('Empathy','e')}
+  ${buildPrintSection('Clear messaging','c')}
+  ${buildPrintSection('Call close','k')}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+    <span style="font-size:15px;font-weight:700;">Overall: ${ovAvg !== null ? ovAvg+' / 10' : '—'}</span>
+    ${ovPct !== null ? `<span class="verdict" style="${verdictStyle(ovPct)}">${verdictLabel(ovPct)}</span>` : ''}
+  </div>
+  <div class="legend">
+    <span><span class="ls" style="background:#FCEBEB;border:1px solid #E24B4A;"></span>1–3 Poor</span>
+    <span><span class="ls" style="background:#FAEEDA;border:1px solid #BA7517;"></span>4–6 Developing</span>
+    <span><span class="ls" style="background:#E6F1FB;border:1px solid #185FA5;"></span>7–8 Meets standard</span>
+    <span><span class="ls" style="background:#EAF3DE;border:1px solid #3B6D11;"></span>9–10 Exceeds</span>
+  </div>
+  ${notes ? `<div class="notes"><strong>QA notes:</strong> ${notes}</div>` : ''}
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 400);
+}
+
+function buildPrintSection(title, s) {
+  const labels = {
+    e: ["Acknowledged member's situation","Used warm, caring tone","Listened actively & did not interrupt","Showed urgency on behalf of the member"],
+    c: ["Explained benefits in plain language","Confirmed member understanding","Provided accurate benefit information","Set clear next steps"],
+    k: ["Verified all issues were resolved","Summarized key outcomes for the member","Expressed genuine appreciation","Provided callback / escalation path"]
+  };
+  const avg = secAvg(s);
+  let rows = S[s].map((v, i) => {
+    const lbl = labels[s][i];
+    const sc = v === null ? '' : v === 'na'
+      ? `<span class="score" style="background:#f5f5f3;color:#5a5a57;">N/A</span>`
+      : `<span class="score" style="${scoreColorStyle(v)}">${v} / 10</span>`;
+    return `<div class="crit"><span>${lbl}</span>${sc}</div>`;
+  }).join('');
+  return `<div class="section"><div class="sec-title">${title}${avg !== null ? ` — avg ${avg.toFixed(1)} / 10` : ''}</div>${rows}</div>`;
+}
+
+function verdictLabel(p) {
+  if (p >= 85) return 'Exceeds standard';
+  if (p >= 70) return 'Meets standard';
+  if (p >= 50) return 'Needs improvement';
+  return 'Below standard';
+}
+function verdictStyle(p) {
+  if (p >= 85) return 'background:#EAF3DE;color:#27500A;';
+  if (p >= 70) return 'background:#E6F1FB;color:#0C447C;';
+  if (p >= 50) return 'background:#FAEEDA;color:#633806;';
+  return 'background:#FCEBEB;color:#791F1F;';
+}
+
+function doExportCSV() {
+  const labels = {
+    e: ["Acknowledged situation","Warm tone","Active listening","Showed urgency"],
+    c: ["Plain language","Confirmed understanding","Accurate info","Clear next steps"],
+    k: ["Verified resolved","Summarized outcomes","Expressed appreciation","Callback path"]
+  };
+  const agent = document.getElementById('meta-agent').value || '';
+  const date  = document.getElementById('meta-date').value || '';
+  const member = document.getElementById('meta-member').value || '';
+  const file  = document.getElementById('meta-file').value || '';
+  const eA = secAvg('e'), cA = secAvg('c'), kA = secAvg('k');
+  const allScored = ['e','c','k'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b)=>a+b,0)/allScored.length).toFixed(1) : '';
+  const ovPct = ovAvg ? Math.round(ovAvg/10*100) : 0;
+  const notes = document.getElementById('qa-notes').value.replace(/"/g,'""');
+  let rows = [['Agent','Date','Member','File','Empathy avg','Clarity avg','Close avg','Overall avg','Verdict','Criterion','Section','Score (1-10)']];
+  ['e','c','k'].forEach(s => {
+    labels[s].forEach((lbl, i) => {
+      const secName = s === 'e' ? 'Empathy' : s === 'c' ? 'Clarity' : 'Close';
+      const secAvgVal = s === 'e' ? eA : s === 'c' ? cA : kA;
+      const v = S[s][i];
+      rows.push([agent, date, member, file,
+        eA !== null ? eA.toFixed(1) : '', cA !== null ? cA.toFixed(1) : '', kA !== null ? kA.toFixed(1) : '',
+        ovAvg, ovAvg ? verdictLabel(ovPct) : '',
+        lbl, secName, v === null ? '' : v]);
+    });
+  });
+  rows.push(['','','','','','','','','','QA Notes','',`"${notes}"`]);
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `qa-scorecard-${date || new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToast('CSV exported');
+}
+
+function toggleMeta() {
+  const s = document.getElementById('call-meta-section');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+function doReset() {
+  ['e','c','k'].forEach(s => { S[s] = [null,null,null,null]; });
+  document.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+  document.querySelectorAll('.na-btn').forEach(el => el.classList.remove('on'));
+  document.getElementById('qa-notes').value = '';
+  clearFile();
+  updateUI();
+  showToast('Scorecard reset');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 2800);
+}
+
+updateUI();
+</script>
+</body>
+</html>
