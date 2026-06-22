@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Surgical Care Call Quality Scoring — Lantern Care</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f3; --bg3: #eeede9;
+    --text: #1a1a19; --text2: #5a5a57; --text3: #9a9a96;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --radius: 8px; --radius-lg: 12px;
+    --purple-bg: #EEEDFE; --purple: #534AB7;
+    --teal-bg: #E1F5EE; --teal: #0F6E56;
+    --blue-bg: #E6F1FB; --blue: #185FA5; --blue-dark: #0C447C;
+    --green-bg: #EAF3DE; --green: #3B6D11; --green-dark: #27500A;
+    --amber-bg: #FAEEDA; --amber: #854F0B;
+    --red-bg: #FCEBEB; --red: #A32D2D;
+    --rose-bg: #FDE8F0; --rose: #9B2057;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+      --text: #f0efeb; --text2: #a8a8a4; --text3: #686864;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --purple-bg: #26215C; --purple: #AFA9EC;
+      --teal-bg: #04342C; --teal: #5DCAA5;
+      --blue-bg: #042C53; --blue: #85B7EB; --blue-dark: #B5D4F4;
+      --green-bg: #173404; --green: #97C459; --green-dark: #C0DD97;
+      --amber-bg: #412402; --amber: #EF9F27;
+      --red-bg: #501313; --red: #F09595;
+      --rose-bg: #3D0820; --rose: #F472B6;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; padding: 24px 16px; }
+  .container { max-width: 800px; margin: 0 auto; }
+  .page-header { margin-bottom: 20px; }
+  .page-header h1 { font-size: 20px; font-weight: 600; }
+  .page-header p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 12px; }
+  .card-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .card-icon { width: 32px; height: 32px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .card-title { font-size: 15px; font-weight: 600; }
+  .card-sub { font-size: 12px; color: var(--text2); }
+  .section-pct { margin-left: auto; font-size: 13px; font-weight: 600; }
+
+  .api-row { display: flex; gap: 8px; align-items: center; }
+  .api-row input { flex: 1; padding: 8px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; font-family: monospace; }
+  .api-row input:focus { outline: none; border-color: var(--blue); }
+  .api-save { padding: 8px 14px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .api-save:hover { background: var(--bg3); }
+  .api-status { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .api-status.ok { color: var(--green); }
+
+  .call-type-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .ct-btn { padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s; }
+  .ct-btn:hover { background: var(--bg3); }
+  .ct-btn.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+  .drop { border: 1px dashed var(--border2); border-radius: var(--radius); padding: 28px 16px; text-align: center; cursor: pointer; background: var(--bg2); transition: background .15s; }
+  .drop:hover, .drop.over { background: var(--bg3); }
+  .drop.has-file { border-style: solid; }
+  .drop-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+  .drop-label { font-size: 13px; color: var(--text2); }
+  .drop-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .file-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 4px 10px; font-size: 12px; margin-top: 8px; }
+  .file-pill button { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 13px; padding: 0 0 0 4px; }
+  .audio-note { background: var(--blue-bg); border: 0.5px solid #B5D4F4; border-radius: var(--radius); padding: 10px 12px; margin-top: 10px; display: none; font-size: 12px; color: var(--blue-dark); line-height: 1.6; }
+  .analyze-btn { width: 100%; margin-top: 10px; padding: 10px; font-size: 14px; font-weight: 600; border-radius: var(--radius); border: none; background: var(--blue); color: #fff; cursor: pointer; transition: opacity .15s; }
+  .analyze-btn:hover { opacity: .88; }
+  .analyze-btn:disabled { opacity: .4; cursor: default; }
+  .or-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0 10px; }
+  .or-divider::before, .or-divider::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+  .or-divider span { font-size: 11px; color: var(--text3); }
+  textarea { width: 100%; padding: 10px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 90px; }
+  textarea:focus { outline: none; border-color: var(--blue); }
+
+  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+  .metric { background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; }
+  .metric-lbl { font-size: 10px; color: var(--text2); margin-bottom: 4px; line-height: 1.3; }
+  .metric-val { font-size: 18px; font-weight: 700; }
+
+  .bar-wrap { height: 5px; background: var(--bg2); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+  .bar { height: 100%; border-radius: 99px; transition: width .35s, background .35s; }
+
+  .crit-row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .crit-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .crit-lbl { flex: 1; min-width: 160px; font-size: 13px; padding-top: 4px; }
+  .crit-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .rating-group { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+  .rb {
+    width: 26px; height: 26px; border-radius: 6px;
+    border: 0.5px solid var(--border2); background: var(--bg);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    color: var(--text2); transition: all .1s; padding: 0;
+  }
+  .rb:hover { background: var(--bg2); }
+  .rb.alow  { background: #FCEBEB; border-color: #E24B4A; color: #791F1F; }
+  .rb.amid  { background: #FAEEDA; border-color: #BA7517; color: #633806; }
+  .rb.agood { background: #E6F1FB; border-color: #185FA5; color: #0C447C; }
+  .rb.ahigh { background: #EAF3DE; border-color: #3B6D11; color: #27500A; }
+
+  .na-btn { font-size: 11px; color: var(--text3); padding-top: 6px; width: 28px; text-align: center; cursor: pointer; user-select: none; flex-shrink: 0; }
+  .na-btn.on { color: var(--text); font-weight: 700; }
+
+  .score-legend { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .sl-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+  .sl-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  .verdict-wrap { margin-top: 10px; }
+  .verdict { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: var(--radius); }
+
+  .overall-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .overall-label { font-size: 15px; font-weight: 600; }
+  .overall-val { font-size: 24px; font-weight: 700; }
+
+  .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .action-btn { flex: 1; min-width: 100px; padding: 9px; font-size: 13px; font-weight: 500; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .action-btn:hover { background: var(--bg2); }
+  .action-btn.primary { background: var(--text); color: var(--bg); border-color: transparent; }
+  .action-btn.primary:hover { opacity: .88; }
+
+  .spinner-wrap { display: none; flex-direction: column; align-items: center; gap: 12px; padding: 20px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-msg { font-size: 13px; color: var(--text2); }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); font-size: 13px; padding: 10px 18px; border-radius: var(--radius); display: none; z-index: 9999; white-space: nowrap; }
+
+  @media (max-width: 600px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .no-print { display: none !important; }
+    .card { border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="page-header">
+    <h1>Surgical Care Call Quality Scoring</h1>
+    <p>Lantern Care — Surgery navigation &amp; specialist outreach. Upload a call recording or paste a transcript for AI-assisted scoring.</p>
+  </div>
+
+  <!-- API Key -->
+  <div class="card no-print" id="api-card">
+    <div class="card-hdr" style="margin-bottom:10px;">
+      <div class="card-icon" style="background:var(--bg2);">🔑</div>
+      <div><div class="card-title">Anthropic API key</div><div class="card-sub">Required for AI analysis. Stored locally in your browser only.</div></div>
+    </div>
+    <div class="api-row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      <button class="api-save" onclick="saveKey()">Save</button>
+    </div>
+    <div class="api-status" id="api-status">No key saved yet.</div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card no-print">
+    <div class="card-hdr" style="margin-bottom:8px;">
+      <div class="card-icon" style="background:var(--amber-bg);">📁</div>
+      <div><div class="card-title">Upload call</div><div class="card-sub">Audio or transcript — Claude analyzes and suggests scores</div></div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;">OUTREACH TYPE (optional — helps Claude score accurately)</div>
+      <div class="call-type-row" id="call-type-row">
+        <button class="ct-btn" data-t="TMO" onclick="setCallType(this)">TMO</button>
+        <button class="ct-btn" data-t="HealthHere" onclick="setCallType(this)">HealthHere</button>
+        <button class="ct-btn" data-t="Marathon Health / PCP Referral" onclick="setCallType(this)">Marathon / PCP</button>
+        <button class="ct-btn" data-t="General Awareness" onclick="setCallType(this)">General Awareness</button>
+      </div>
+    </div>
+
+    <div class="drop" id="drop-zone" onclick="document.getElementById('file-inp').click()" ondragover="dov(event)" ondragleave="dol()" ondrop="ddr(event)">
+      <input type="file" id="file-inp" accept=".mp3,.wav,.m4a,.mp4,.ogg,.flac,.txt,.pdf,.doc,.docx" style="display:none" onchange="onSel(event)">
+      <span class="drop-icon" id="drop-icon">📂</span>
+      <div class="drop-label" id="drop-label">Drop a file here or click to browse</div>
+      <div class="drop-hint" id="drop-hint">.mp3 &nbsp;.wav &nbsp;.m4a &nbsp;.txt &nbsp;.pdf &nbsp;.doc</div>
+    </div>
+    <div id="pill-row"></div>
+    <div class="audio-note" id="audio-note">Audio files are sent to Claude via the Anthropic API for transcription and scoring. Make sure your API key is saved above.</div>
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      <div class="spinner-msg" id="spinner-msg">Analyzing call...</div>
+    </div>
+    <button class="analyze-btn" id="analyze-btn" disabled onclick="doAnalyze()">Analyze &amp; auto-fill scores</button>
+    <div class="or-divider"><span>or paste transcript</span></div>
+    <textarea id="paste-area" placeholder="Rep: Hi, this is [Rep Name] with Lantern Care, calling on a recorded line. May I speak to…&#10;Member: Yes, this is them."></textarea>
+    <button class="analyze-btn" id="paste-btn" onclick="doPaste()" style="margin-top:8px;">Analyze transcript</button>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric"><div class="metric-lbl">Intro &amp; Verification</div><div class="metric-val" id="sc-a">—</div></div>
+    <div class="metric"><div class="metric-lbl">Discovery</div><div class="metric-val" id="sc-b">—</div></div>
+    <div class="metric"><div class="metric-lbl">Surgery Positioning</div><div class="metric-val" id="sc-c">—</div></div>
+    <div class="metric"><div class="metric-lbl">Provider Handling</div><div class="metric-val" id="sc-d">—</div></div>
+    <div class="metric"><div class="metric-lbl">Call Close</div><div class="metric-val" id="sc-e">—</div></div>
+  </div>
+
+  <!-- Section A: Intro & Verification -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--purple-bg);">👋</div>
+      <div><div class="card-title">Introduction &amp; Verification</div><div class="card-sub">Opening, employment confirmation, and identity protection</div></div>
+      <div class="section-pct" id="ap-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-a" style="width:0%;background:var(--purple);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Proper introduction on recorded line<div class="crit-sub">Stated rep name, "Lantern Care," and "recorded line" — used member's full name</div></div>
+        <div class="rating-group" data-s="a" data-i="0"></div>
+        <span class="na-btn" data-s="a" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Confirmed active employment<div class="crit-sub">Asked if member is currently employed; handled non-employee with grace</div></div>
+        <div class="rating-group" data-s="a" data-i="1"></div>
+        <span class="na-btn" data-s="a" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Completed identity verification<div class="crit-sub">Obtained 2 of 3 elements (DOB/address/phone); handled decline with inbound number</div></div>
+        <div class="rating-group" data-s="a" data-i="2"></div>
+        <span class="na-btn" data-s="a" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Framed benefit as employer-provided, no extra cost<div class="crit-sub">Positioned Lantern as added support at no additional cost before proceeding</div></div>
+        <div class="rating-group" data-s="a" data-i="3"></div>
+        <span class="na-btn" data-s="a" data-i="3">N/A</span>
+      </div>
+    </div>
+    <div class="score-legend">
+      <div class="sl-item"><div class="sl-swatch" style="background:#FCEBEB;border:1px solid #E24B4A;"></div>1–3 Poor</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#FAEEDA;border:1px solid #BA7517;"></div>4–6 Developing</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#E6F1FB;border:1px solid #185FA5;"></div>7–8 Meets standard</div>
+      <div class="sl-item"><div class="sl-swatch" style="background:#EAF3DE;border:1px solid #3B6D11;"></div>9–10 Exceeds</div>
+    </div>
+  </div>
+
+  <!-- Section B: Discovery -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--teal-bg);">🔍</div>
+      <div><div class="card-title">Discovery &amp; Program Overview</div><div class="card-sub">Outreach-type framing, benefit explanation, and member situation</div></div>
+      <div class="section-pct" id="bp-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-b" style="width:0%;background:var(--teal);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Used correct outreach-type opening<div class="crit-sub">Matched script to call type: TMO, HealthHere, Marathon Health, or General Awareness</div></div>
+        <div class="rating-group" data-s="b" data-i="0"></div>
+        <span class="na-btn" data-s="b" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Explained Lantern program clearly<div class="crit-sub">Covered scheduling, records, provider coordination, billing, travel support</div></div>
+        <div class="rating-group" data-s="b" data-i="1"></div>
+        <span class="na-btn" data-s="b" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Asked discovery questions and listened<div class="crit-sub">Identified member's surgical situation before pitching; paused and responded to member cues</div></div>
+        <div class="rating-group" data-s="b" data-i="2"></div>
+        <span class="na-btn" data-s="b" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Handled familiar / unfamiliar member appropriately<div class="crit-sub">Gave refresher if familiar; gave full intro if new to benefit — did not skip either</div></div>
+        <div class="rating-group" data-s="b" data-i="3"></div>
+        <span class="na-btn" data-s="b" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section C: Surgery Positioning -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--blue-bg);">🏥</div>
+      <div><div class="card-title">Surgery Positioning</div><div class="card-sub">Network quality, mandate disclosure, and financial benefit accuracy</div></div>
+      <div class="section-pct" id="cp-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-c" style="width:0%;background:var(--blue);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Communicated surgeon vetting criteria<div class="crit-sub">Mentioned board certified, fellowship trained, malpractice review, and outcomes/complication rates</div></div>
+        <div class="rating-group" data-s="c" data-i="0"></div>
+        <span class="na-btn" data-s="c" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Addressed mandate correctly if applicable<div class="crit-sub">Disclosed mandate requirement and financial consequence of going out-of-network when plan requires it</div></div>
+        <div class="rating-group" data-s="c" data-i="1"></div>
+        <span class="na-btn" data-s="c" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Explained correct financial benefit tier<div class="crit-sub">Accurately conveyed Waive All / Collect Deductible+Waive Coinsurance / Collect Deductible+Coinsurance for member's plan</div></div>
+        <div class="rating-group" data-s="c" data-i="2"></div>
+        <span class="na-btn" data-s="c" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Did not over-promise or under-explain costs<div class="crit-sub">Set accurate payment timing expectations; did not guarantee $0 when not applicable</div></div>
+        <div class="rating-group" data-s="c" data-i="3"></div>
+        <span class="na-btn" data-s="c" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section D: Provider Handling -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--amber-bg);">👨‍⚕️</div>
+      <div><div class="card-title">Provider Handling</div><div class="card-sub">Network check, questionnaire, records, and next-step coordination</div></div>
+      <div class="section-pct" id="dp-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-d" style="width:0%;background:var(--amber);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Correctly handled in-network vs. out-of-network surgeon<div class="crit-sub">Sent referral if in-network; offered alternative Lantern surgeon list if out-of-network</div></div>
+        <div class="rating-group" data-s="d" data-i="0"></div>
+        <span class="na-btn" data-s="d" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Offered medical questionnaire to match surgeon<div class="crit-sub">Presented questionnaire as the path to a personalized provider list; attempted to complete live or via email</div></div>
+        <div class="rating-group" data-s="d" data-i="1"></div>
+        <span class="na-btn" data-s="d" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Collected or referenced key member info<div class="crit-sub">Gathered height, weight, conditions, mailing address, and email when questionnaire was deferred</div></div>
+        <div class="rating-group" data-s="d" data-i="2"></div>
+        <span class="na-btn" data-s="d" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Set accurate provider list and DocuSign expectations<div class="crit-sub">Told member to expect provider list within ~48 hours and a DocuSign records release form</div></div>
+        <div class="rating-group" data-s="d" data-i="3"></div>
+        <span class="na-btn" data-s="d" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section E: Call Close -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-icon" style="background:var(--green-bg);">✅</div>
+      <div><div class="card-title">Call Close</div><div class="card-sub">Wrap-up quality, app mention, member confidence, and warm goodbye</div></div>
+      <div class="section-pct" id="ep-pct">—</div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar-e" style="width:0%;background:var(--green);"></div></div>
+    <div style="margin-top:12px;">
+      <div class="crit-row">
+        <div class="crit-lbl">Asked if member had questions before closing<div class="crit-sub">Explicitly invited questions and addressed them before wrapping up</div></div>
+        <div class="rating-group" data-s="e" data-i="0"></div>
+        <span class="na-btn" data-s="e" data-i="0">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Mentioned Lantern mobile app<div class="crit-sub">Told member they can review providers and track their care journey in the app store</div></div>
+        <div class="rating-group" data-s="e" data-i="1"></div>
+        <span class="na-btn" data-s="e" data-i="1">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Summarized next steps clearly<div class="crit-sub">Member left knowing exactly what happens next (list in 48hrs, DocuSign, referral, etc.)</div></div>
+        <div class="rating-group" data-s="e" data-i="2"></div>
+        <span class="na-btn" data-s="e" data-i="2">N/A</span>
+      </div>
+      <div class="crit-row">
+        <div class="crit-lbl">Closed warmly and expressed genuine partnership<div class="crit-sub">Thanked member for their time; conveyed excitement to support their care journey</div></div>
+        <div class="rating-group" data-s="e" data-i="3"></div>
+        <span class="na-btn" data-s="e" data-i="3">N/A</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overall -->
+  <div class="card">
+    <div class="overall-row">
+      <span class="overall-label">Overall score</span>
+      <span class="overall-val" id="ov-pct">—</span>
+    </div>
+    <div class="bar-wrap" style="height:8px;"><div class="bar" id="bar-ov" style="width:0%;"></div></div>
+    <div class="verdict-wrap"><span class="verdict" id="verdict" style="display:none;"></span></div>
+
+    <div style="margin-top:14px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">QA notes &amp; coaching</label>
+      <textarea id="qa-notes" style="min-height:80px;" placeholder="Coaching notes, highlights, or follow-up items…"></textarea>
+    </div>
+
+    <div id="call-meta-section" style="display:none;margin-top:14px;">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Call details (optional — appears on printed scorecard)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input type="text" id="meta-agent" placeholder="Rep name" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-date" placeholder="Call date" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-member" placeholder="Member name" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+        <input type="text" id="meta-file" placeholder="Call ID / filename" style="padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="action-btn primary" onclick="doPrint()">🖨️ Print / Save PDF</button>
+      <button class="action-btn" onclick="doExportCSV()">📥 Export CSV</button>
+      <button class="action-btn" onclick="toggleMeta()">📋 Call details</button>
+      <button class="action-btn" onclick="doReset()" style="flex:0 0 auto;width:90px;">↺ Reset</button>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { a:[null,null,null,null], b:[null,null,null,null], c:[null,null,null,null], d:[null,null,null,null], e:[null,null,null,null] };
+const AUDIO_EXTS = ['.mp3','.wav','.m4a','.mp4','.ogg','.flac'];
+let curFile = null, isAudio = false, callType = '';
+
+function scoreClass(v) {
+  if (v <= 3) return 'alow';
+  if (v <= 6) return 'amid';
+  if (v <= 8) return 'agood';
+  return 'ahigh';
+}
+
+document.querySelectorAll('.rating-group').forEach(g => {
+  for (let v = 1; v <= 10; v++) {
+    const btn = document.createElement('button');
+    btn.className = 'rb';
+    btn.dataset.v = v;
+    btn.textContent = v;
+    btn.title = v <= 3 ? 'Poor' : v <= 6 ? 'Developing' : v <= 8 ? 'Meets standard' : 'Exceeds';
+    btn.addEventListener('click', () => {
+      const s = g.dataset.s, i = parseInt(g.dataset.i);
+      S[s][i] = v;
+      g.querySelectorAll('.rb').forEach(b => {
+        b.className = 'rb';
+        if (parseInt(b.dataset.v) === v) b.classList.add(scoreClass(v));
+      });
+      const na = document.querySelector(`.na-btn[data-s="${s}"][data-i="${i}"]`);
+      if (na) na.classList.remove('on');
+      updateUI();
+    });
+    g.appendChild(btn);
+  }
+});
+
+document.querySelectorAll('.na-btn').forEach(el => {
+  el.addEventListener('click', () => {
+    const s = el.dataset.s, i = parseInt(el.dataset.i);
+    S[s][i] = 'na';
+    const g = document.querySelector(`.rating-group[data-s="${s}"][data-i="${i}"]`);
+    if (g) g.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+    el.classList.add('on');
+    updateUI();
+  });
+});
+
+function setCallType(btn) {
+  const wasOn = btn.classList.contains('on');
+  document.querySelectorAll('.ct-btn').forEach(b => b.classList.remove('on'));
+  if (!wasOn) { btn.classList.add('on'); callType = btn.dataset.t; }
+  else callType = '';
+}
+
+// API key
+function saveKey() {
+  const v = document.getElementById('api-key-input').value.trim();
+  if (!v.startsWith('sk-ant-') && !v.startsWith('sk-')) { showToast('Key should start with sk-ant-'); return; }
+  localStorage.setItem('lc_qa_apikey', v);
+  document.getElementById('api-status').textContent = 'Key saved. ✓';
+  document.getElementById('api-status').className = 'api-status ok';
+  showToast('API key saved');
+}
+function getKey() { return localStorage.getItem('lc_qa_apikey') || ''; }
+window.addEventListener('load', () => {
+  const k = getKey();
+  if (k) {
+    document.getElementById('api-key-input').value = k;
+    document.getElementById('api-status').textContent = 'Key loaded from local storage. ✓';
+    document.getElementById('api-status').className = 'api-status ok';
+  }
+});
+
+// File handling
+function isAudioFile(n) { return AUDIO_EXTS.some(x => n.toLowerCase().endsWith(x)); }
+function dov(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('over'); }
+function dol() { document.getElementById('drop-zone').classList.remove('over'); }
+function ddr(e) { e.preventDefault(); dol(); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }
+function onSel(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
+
+function handleFile(f) {
+  curFile = f; isAudio = isAudioFile(f.name);
+  document.getElementById('drop-zone').classList.add('has-file');
+  document.getElementById('drop-icon').textContent = isAudio ? '🎵' : '📄';
+  document.getElementById('drop-label').textContent = f.name;
+  document.getElementById('drop-hint').textContent = isAudio ? 'Audio recording — will be transcribed by Claude' : 'Transcript — will be read directly';
+  showPill(f.name);
+  document.getElementById('audio-note').style.display = isAudio ? 'block' : 'none';
+  document.getElementById('analyze-btn').disabled = false;
+  document.getElementById('meta-file').value = f.name;
+}
+
+function showPill(name) {
+  document.getElementById('pill-row').innerHTML =
+    `<div class="file-pill">${isAudio ? '🎵' : '📄'} ${name}<button onclick="clearFile()" title="Remove">✕</button></div>`;
+}
+
+function clearFile() {
+  curFile = null; isAudio = false;
+  document.getElementById('pill-row').innerHTML = '';
+  document.getElementById('drop-zone').classList.remove('has-file');
+  document.getElementById('drop-icon').textContent = '📂';
+  document.getElementById('drop-label').textContent = 'Drop a file here or click to browse';
+  document.getElementById('drop-hint').textContent = '.mp3  .wav  .m4a  .txt  .pdf  .doc';
+  document.getElementById('audio-note').style.display = 'none';
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('file-inp').value = '';
+}
+
+const PROMPT = `You are a QA evaluator for Lantern Care, a healthcare surgery navigation company. Analyze the following call {SOURCE} and score each criterion on a scale of 1–10. Use "na" if a criterion is genuinely not applicable or cannot be assessed.
+
+{CALL_TYPE_LINE}
+
+Scoring guide:
+1–3 = Poor (criterion not met or barely attempted)
+4–6 = Developing (partial effort, inconsistent execution)
+7–8 = Meets standard (solid performance, minor gaps)
+9–10 = Exceeds standard (exemplary, proactive, above expectations)
+
+{CONTENT}
+
+Return ONLY valid JSON with no explanation or text outside the JSON:
+{"intro":[s,s,s,s],"discovery":[s,s,s,s],"positioning":[s,s,s,s],"provider":[s,s,s,s],"close":[s,s,s,s],"summary":"2-3 sentence coaching note"}
+
+Criteria (each score must be integer 1–10 or the string "na"):
+
+intro[0] Proper introduction on recorded line — stated rep name, "Lantern Care," and "recorded line"; used member's full name
+intro[1] Confirmed active employment — asked if member is currently employed; handled non-employee gracefully
+intro[2] Completed identity verification — obtained 2 of 3 elements (DOB/address/phone); handled decline by providing inbound number
+intro[3] Framed benefit as employer-provided, no extra cost — positioned Lantern as an added support at no additional cost before proceeding
+
+discovery[0] Used correct outreach-type opening — matched script to call type: TMO, HealthHere, Marathon Health/PCP referral, or General Awareness
+discovery[1] Explained Lantern program clearly — covered scheduling, records, provider coordination, billing alignment, and travel support
+discovery[2] Asked discovery questions and listened — identified member's surgical situation before pitching; paused and responded to member cues before advancing
+discovery[3] Handled familiar vs unfamiliar member appropriately — gave refresher if member knew the benefit; gave full intro if new — did not skip either path
+
+positioning[0] Communicated surgeon vetting criteria — mentioned board certified, fellowship trained, malpractice history review, and surgical outcomes/complication rates
+positioning[1] Addressed mandate correctly if applicable — disclosed mandate requirement and financial consequence of going out-of-network if plan requires it
+positioning[2] Explained correct financial benefit tier — accurately conveyed the member's tier: Waive All / Collect Deductible+Waive Coinsurance / Collect Deductible+Coinsurance
+positioning[3] Did not over-promise or under-explain costs — set accurate payment timing expectations; did not guarantee $0 when not applicable
+
+provider[0] Correctly handled in-network vs out-of-network surgeon — sent referral if in-network; offered alternative Lantern surgeon list if out-of-network
+provider[1] Offered medical questionnaire to match surgeon — presented questionnaire as path to personalized provider list; attempted to complete live or via email
+provider[2] Collected or referenced key member info — gathered height, weight, conditions, mailing address, and email when questionnaire was deferred
+provider[3] Set accurate provider list and DocuSign expectations — told member to expect provider list within ~48 hours and a DocuSign records release form
+
+close[0] Asked if member had questions before closing — explicitly invited questions and addressed them before wrapping up
+close[1] Mentioned Lantern mobile app — told member they can review providers and track care journey in the app store
+close[2] Summarized next steps clearly — member left knowing exactly what happens next (list in 48hrs, DocuSign, referral, etc.)
+close[3] Closed warmly and expressed genuine partnership — thanked member; conveyed excitement to support their care journey`;
+
+async function callClaude(source, content, isAudioB64, mimeType) {
+  const key = getKey();
+  if (!key) { showToast('Save your API key first'); return null; }
+  const callTypeLine = callType ? `Outreach type for this call: ${callType}. Score discovery[0] accordingly.` : 'Outreach type is unknown — score discovery[0] based on whatever opening pattern is used.';
+  const prompt = PROMPT.replace('{SOURCE}', source).replace('{CALL_TYPE_LINE}', callTypeLine);
+  const messages = [];
+  if (isAudioB64) {
+    messages.push({ role: 'user', content: [
+      { type: 'text', text: prompt.replace('{CONTENT}', 'The audio recording is attached below. Please transcribe it and evaluate the rep.') },
+      { type: 'document', source: { type: 'base64', media_type: mimeType, data: isAudioB64 } }
+    ]});
+  } else {
+    messages.push({ role: 'user', content: prompt.replace('{CONTENT}', content) });
+  }
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-calls': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1024, messages })
+  });
+  if (!resp.ok) { const e = await resp.json(); showToast('API error: ' + (e.error?.message || resp.status)); return null; }
+  const data = await resp.json();
+  const text = data.content[0].text.trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) { showToast('Could not parse Claude response'); return null; }
+  return JSON.parse(jsonMatch[0]);
+}
+
+function setSpinner(show, msg) {
+  document.getElementById('spinner').style.display = show ? 'flex' : 'none';
+  if (msg) document.getElementById('spinner-msg').textContent = msg;
+  document.getElementById('analyze-btn').disabled = show;
+  document.getElementById('paste-btn').disabled = show;
+}
+
+async function doAnalyze() {
+  if (!curFile) return;
+  setSpinner(true, isAudio ? 'Transcribing and scoring audio...' : 'Analyzing transcript...');
+  try {
+    let result;
+    if (isAudio) {
+      const b64 = await fileToBase64(curFile);
+      result = await callClaude('audio recording', '', b64, curFile.type || 'audio/mpeg');
+    } else {
+      result = await callClaude('transcript', await curFile.text(), null, null);
+    }
+    if (result) applyScores(result);
+  } catch(err) { showToast('Error: ' + err.message); }
+  setSpinner(false);
+}
+
+async function doPaste() {
+  const txt = document.getElementById('paste-area').value.trim();
+  if (!txt) { showToast('Paste a transcript first'); return; }
+  setSpinner(true, 'Analyzing transcript...');
+  try {
+    const result = await callClaude('transcript', txt, null, null);
+    if (result) applyScores(result);
+  } catch(err) { showToast('Error: ' + err.message); }
+  setSpinner(false);
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function applyScores(data) {
+  const map = { intro:'a', discovery:'b', positioning:'c', provider:'d', close:'e' };
+  for (const [key, s] of Object.entries(map)) {
+    if (!Array.isArray(data[key])) continue;
+    data[key].forEach((val, i) => {
+      S[s][i] = val === 'na' ? 'na' : parseInt(val);
+      const g = document.querySelector(`.rating-group[data-s="${s}"][data-i="${i}"]`);
+      const na = document.querySelector(`.na-btn[data-s="${s}"][data-i="${i}"]`);
+      if (!g) return;
+      g.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+      if (na) na.classList.remove('on');
+      if (val === 'na') {
+        if (na) na.classList.add('on');
+      } else {
+        const b = g.querySelector(`[data-v="${val}"]`);
+        if (b) b.classList.add(scoreClass(parseInt(val)));
+      }
+    });
+  }
+  if (data.summary) document.getElementById('qa-notes').value = data.summary;
+  updateUI();
+  showToast('Scores filled in — review and adjust as needed');
+}
+
+function secAvg(s) {
+  const v = S[s].filter(x => x !== null && x !== 'na');
+  if (!v.length) return null;
+  return Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10;
+}
+
+function barColor(p) {
+  if (p >= 85) return '#639922';
+  if (p >= 70) return '#185FA5';
+  if (p >= 50) return '#BA7517';
+  return '#E24B4A';
+}
+
+function updateUI() {
+  const cfg = {
+    a:{sc:'sc-a',pct:'ap-pct',bar:'bar-a'},
+    b:{sc:'sc-b',pct:'bp-pct',bar:'bar-b'},
+    c:{sc:'sc-c',pct:'cp-pct',bar:'bar-c'},
+    d:{sc:'sc-d',pct:'dp-pct',bar:'bar-d'},
+    e:{sc:'sc-e',pct:'ep-pct',bar:'bar-e'}
+  };
+  const pcts = [];
+  for (const [s, ids] of Object.entries(cfg)) {
+    const avg = secAvg(s);
+    const p = avg === null ? null : Math.round(avg / 10 * 100);
+    if (avg === null) {
+      document.getElementById(ids.sc).textContent = '—';
+      document.getElementById(ids.pct).textContent = '—';
+      document.getElementById(ids.bar).style.width = '0%';
+    } else {
+      document.getElementById(ids.sc).textContent = avg.toFixed(1) + ' / 10';
+      document.getElementById(ids.pct).textContent = avg.toFixed(1) + ' / 10';
+      const b = document.getElementById(ids.bar);
+      b.style.width = p + '%'; b.style.background = barColor(p);
+      pcts.push(p);
+    }
+  }
+  const ov = pcts.length ? Math.round(pcts.reduce((a,b) => a+b,0) / pcts.length) : null;
+  const ovEl = document.getElementById('ov-pct');
+  const ovBar = document.getElementById('bar-ov');
+  const vEl = document.getElementById('verdict');
+  if (!ov) { ovEl.textContent = '—'; ovBar.style.width = '0%'; vEl.style.display = 'none'; return; }
+
+  const allScored = ['a','b','c','d','e'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b) => a+b,0) / allScored.length) : 0;
+  ovEl.textContent = ovAvg.toFixed(1) + ' / 10';
+  ovBar.style.width = ov + '%'; ovBar.style.background = barColor(ov);
+  vEl.style.display = 'inline-flex';
+  const verdicts = [
+    [85,'Exceeds standard','background:#EAF3DE;color:#27500A;border:0.5px solid #3B6D11;'],
+    [70,'Meets standard','background:#E6F1FB;color:#0C447C;border:0.5px solid #185FA5;'],
+    [50,'Needs improvement','background:#FAEEDA;color:#633806;border:0.5px solid #BA7517;'],
+    [0,'Below standard','background:#FCEBEB;color:#791F1F;border:0.5px solid #E24B4A;']
+  ];
+  const [,lbl,sty] = verdicts.find(([m]) => ov >= m);
+  vEl.textContent = lbl;
+  vEl.style.cssText = sty + 'display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:4px 12px;border-radius:8px;';
+}
+
+function scoreColorStyle(v) {
+  if (v <= 3) return 'background:#FCEBEB;color:#791F1F;';
+  if (v <= 6) return 'background:#FAEEDA;color:#633806;';
+  if (v <= 8) return 'background:#E6F1FB;color:#0C447C;';
+  return 'background:#EAF3DE;color:#27500A;';
+}
+
+function verdictLabel(p) {
+  if (p >= 85) return 'Exceeds standard';
+  if (p >= 70) return 'Meets standard';
+  if (p >= 50) return 'Needs improvement';
+  return 'Below standard';
+}
+function verdictStyle(p) {
+  if (p >= 85) return 'background:#EAF3DE;color:#27500A;';
+  if (p >= 70) return 'background:#E6F1FB;color:#0C447C;';
+  if (p >= 50) return 'background:#FAEEDA;color:#633806;';
+  return 'background:#FCEBEB;color:#791F1F;';
+}
+
+function buildPrintSection(title, s) {
+  const labels = {
+    a: ["Proper introduction on recorded line","Confirmed active employment","Completed identity verification","Framed benefit as employer-provided, no extra cost"],
+    b: ["Used correct outreach-type opening","Explained Lantern program clearly","Asked discovery questions and listened","Handled familiar vs unfamiliar member"],
+    c: ["Communicated surgeon vetting criteria","Addressed mandate correctly if applicable","Explained correct financial benefit tier","Did not over-promise or under-explain costs"],
+    d: ["Handled in-network vs out-of-network surgeon","Offered medical questionnaire","Collected key member info","Set provider list and DocuSign expectations"],
+    e: ["Asked if member had questions","Mentioned Lantern mobile app","Summarized next steps clearly","Closed warmly and with genuine partnership"]
+  };
+  const avg = secAvg(s);
+  let rows = S[s].map((v, i) => {
+    const lbl = labels[s][i];
+    const sc = v === null ? '' : v === 'na'
+      ? `<span class="score" style="background:#f5f5f3;color:#5a5a57;">N/A</span>`
+      : `<span class="score" style="${scoreColorStyle(v)}">${v} / 10</span>`;
+    return `<div class="crit"><span>${lbl}</span>${sc}</div>`;
+  }).join('');
+  return `<div class="section"><div class="sec-title">${title}${avg !== null ? ` — avg ${avg.toFixed(1)} / 10` : ''}</div>${rows}</div>`;
+}
+
+function doPrint() {
+  const agent = document.getElementById('meta-agent').value;
+  const date = document.getElementById('meta-date').value;
+  const member = document.getElementById('meta-member').value;
+  const file = document.getElementById('meta-file').value;
+  let meta = '';
+  if (agent || date || member || file || callType) {
+    meta = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">`;
+    if (agent) meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Rep: ${agent}</span>`;
+    if (date)  meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Date: ${date}</span>`;
+    if (member) meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">Member: ${member}</span>`;
+    if (file)  meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#f5f5f3;border:1px solid #ddd;">File: ${file}</span>`;
+    if (callType) meta += `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#E6F1FB;border:1px solid #185FA5;color:#0C447C;">Type: ${callType}</span>`;
+    meta += `</div>`;
+  }
+  const notes = document.getElementById('qa-notes').value;
+  const aA = secAvg('a'), bA = secAvg('b'), cA = secAvg('c'), dA = secAvg('d'), eA = secAvg('e');
+  const allScored = ['a','b','c','d','e'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b)=>a+b,0)/allScored.length).toFixed(1) : null;
+  const ovPct = ovAvg ? Math.round(ovAvg/10*100) : null;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Surgical Care QA Scorecard — Lantern Care</title>
+  <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;max-width:720px;margin:0 auto;color:#1a1a19;}
+  h1{font-size:20px;font-weight:700;margin-bottom:4px;}
+  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0;}
+  .metric{background:#f5f5f3;border-radius:8px;padding:10px 12px;}
+  .metric-lbl{font-size:10px;color:#5a5a57;margin-bottom:4px;line-height:1.3;}
+  .metric-val{font-size:17px;font-weight:700;}
+  .section{margin-bottom:14px;border:1px solid #e0e0dc;border-radius:10px;padding:12px 14px;}
+  .sec-title{font-size:14px;font-weight:700;margin-bottom:8px;}
+  .crit{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0ec;font-size:12px;}
+  .crit:last-child{border-bottom:none;}
+  .score{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px;}
+  .verdict{display:inline-block;font-size:12px;font-weight:700;padding:4px 12px;border-radius:6px;margin-top:8px;}
+  .notes{background:#f5f5f3;border-radius:8px;padding:12px;margin-top:12px;font-size:13px;line-height:1.6;}
+  .legend{display:flex;gap:12px;font-size:11px;color:#5a5a57;margin-top:8px;flex-wrap:wrap;}
+  .ls{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:middle;}
+  @media print{body{padding:16px;}}</style></head><body>
+  <h1>Surgical Care QA Scorecard</h1>
+  <p style="font-size:12px;color:#5a5a57;margin-bottom:8px;">Lantern Care — Surgery Navigation QA &nbsp;·&nbsp; Scale: 1–10</p>
+  ${meta}
+  <div class="metrics">
+    <div class="metric"><div class="metric-lbl">Intro &amp; Verification</div><div class="metric-val">${aA !== null ? aA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Discovery</div><div class="metric-val">${bA !== null ? bA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Surgery Positioning</div><div class="metric-val">${cA !== null ? cA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Provider Handling</div><div class="metric-val">${dA !== null ? dA.toFixed(1)+' / 10' : '—'}</div></div>
+    <div class="metric"><div class="metric-lbl">Call Close</div><div class="metric-val">${eA !== null ? eA.toFixed(1)+' / 10' : '—'}</div></div>
+  </div>
+  ${buildPrintSection('Introduction &amp; Verification','a')}
+  ${buildPrintSection('Discovery &amp; Program Overview','b')}
+  ${buildPrintSection('Surgery Positioning','c')}
+  ${buildPrintSection('Provider Handling','d')}
+  ${buildPrintSection('Call Close','e')}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+    <span style="font-size:15px;font-weight:700;">Overall: ${ovAvg !== null ? ovAvg+' / 10' : '—'}</span>
+    ${ovPct !== null ? `<span class="verdict" style="${verdictStyle(ovPct)}">${verdictLabel(ovPct)}</span>` : ''}
+  </div>
+  <div class="legend">
+    <span><span class="ls" style="background:#FCEBEB;border:1px solid #E24B4A;"></span>1–3 Poor</span>
+    <span><span class="ls" style="background:#FAEEDA;border:1px solid #BA7517;"></span>4–6 Developing</span>
+    <span><span class="ls" style="background:#E6F1FB;border:1px solid #185FA5;"></span>7–8 Meets standard</span>
+    <span><span class="ls" style="background:#EAF3DE;border:1px solid #3B6D11;"></span>9–10 Exceeds</span>
+  </div>
+  ${notes ? `<div class="notes"><strong>QA notes:</strong> ${notes}</div>` : ''}
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 400);
+}
+
+function doExportCSV() {
+  const labels = {
+    a: ["Proper introduction","Confirmed employment","Identity verification","Framed as employer benefit"],
+    b: ["Correct outreach-type opening","Explained Lantern program","Discovery questions & listening","Handled familiar vs unfamiliar"],
+    c: ["Surgeon vetting criteria","Addressed mandate","Correct financial tier","No over/under promise on costs"],
+    d: ["In-network vs out-of-network","Offered questionnaire","Collected member info","Provider list & DocuSign expectations"],
+    e: ["Asked for questions","Mentioned mobile app","Summarized next steps","Warm close & partnership"]
+  };
+  const agent = document.getElementById('meta-agent').value || '';
+  const date  = document.getElementById('meta-date').value || '';
+  const member = document.getElementById('meta-member').value || '';
+  const file  = document.getElementById('meta-file').value || '';
+  const aA = secAvg('a'), bA = secAvg('b'), cA = secAvg('c'), dA = secAvg('d'), eA = secAvg('e');
+  const allScored = ['a','b','c','d','e'].flatMap(s => S[s].filter(x => x !== null && x !== 'na'));
+  const ovAvg = allScored.length ? (allScored.reduce((a,b)=>a+b,0)/allScored.length).toFixed(1) : '';
+  const ovPct = ovAvg ? Math.round(ovAvg/10*100) : 0;
+  const notes = document.getElementById('qa-notes').value.replace(/"/g,'""');
+  const secNames = {a:'Intro & Verification',b:'Discovery',c:'Surgery Positioning',d:'Provider Handling',e:'Call Close'};
+  const secAvgs = {a:aA,b:bA,c:cA,d:dA,e:eA};
+  let rows = [['Rep','Date','Member','File','Call Type','Intro avg','Discovery avg','Positioning avg','Provider avg','Close avg','Overall avg','Verdict','Criterion','Section','Score (1-10)']];
+  ['a','b','c','d','e'].forEach(s => {
+    labels[s].forEach((lbl, i) => {
+      const v = S[s][i];
+      rows.push([agent, date, member, file, callType,
+        aA !== null ? aA.toFixed(1) : '', bA !== null ? bA.toFixed(1) : '',
+        cA !== null ? cA.toFixed(1) : '', dA !== null ? dA.toFixed(1) : '',
+        eA !== null ? eA.toFixed(1) : '', ovAvg, ovAvg ? verdictLabel(ovPct) : '',
+        lbl, secNames[s], v === null ? '' : v]);
+    });
+  });
+  rows.push(['','','','','','','','','','','','','QA Notes','',`"${notes}"`]);
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `surgical-qa-scorecard-${date || new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToast('CSV exported');
+}
+
+function toggleMeta() {
+  const s = document.getElementById('call-meta-section');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+function doReset() {
+  ['a','b','c','d','e'].forEach(s => { S[s] = [null,null,null,null]; });
+  document.querySelectorAll('.rb').forEach(b => b.className = 'rb');
+  document.querySelectorAll('.na-btn').forEach(el => el.classList.remove('on'));
+  document.getElementById('qa-notes').value = '';
+  document.querySelectorAll('.ct-btn').forEach(b => b.classList.remove('on'));
+  callType = '';
+  clearFile();
+  updateUI();
+  showToast('Scorecard reset');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 2800);
+}
+
+updateUI();
+</script>
+</body>
+</html>
